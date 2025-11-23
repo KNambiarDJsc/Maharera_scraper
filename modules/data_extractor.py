@@ -730,4 +730,24 @@ class DataExtracter:
             self.logger.warning(f"Could not extract parking details: {e}")
             return results
 
+    async def _extract_bank_details(self, page: Page) -> Dict[str, Optional[str]]:
+        result = { "bank_name": None, "ifsc_code": None, "bank_address": None }
+        try:
+            container = page.locator("project-bank-details-preview fieldset").nth(0)
+            await container.wait_for(timeout=7000)
+            fields_to_extract = { "Bank Name": "bank_name", "IFSC Code": "ifsc_code", "Bank Address": "bank_address" }
+            for label_text, dict_key in fields_to_extract.items():
+                try:
+                    label_locator = container.locator(f"label.form-label:has-text('{label_text}')")
+                    value_locator = label_locator.locator("xpath=following-sibling::div[1]")
+                    value = (await value_locator.inner_text()).strip()
+                    result[dict_key] = value
+                except Exception as inner_e:
+                    self.logger.warning(f"Could not find bank field '{label_text}': {inner_e}")
+                    continue
+            return result
+        except Exception as e:
+            self.logger.error(f"Failed to extract bank details section: {e}")
+            return result
+
 
