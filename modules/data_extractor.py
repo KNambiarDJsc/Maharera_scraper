@@ -509,4 +509,40 @@ class DataExtracter:
             self.logger.error(f"Could not extract form dates: {e}")
             return latest_dates
 
+    async def extract_promoter_landowner_details(self, page: Page) -> Dict[str, Any]:
+        landowner_data = { "promoter_is_landowner": False, "has_other_landowners": False, "landowner_names": None, "landowner_types": None, "landowner_share_types": None }
+        try:
+            container = page.locator('div.white-box:has-text("Promoter Landowner")')
+            await container.wait_for(state="visible", timeout=7000)
+            promoter_checkbox = container.locator('div.form-check1:has(label:text-is("Promoter")) input[type="checkbox"]')
+            other_landowners_checkbox = container.locator('div.form-check1:has(label:text-is("Promoter Landowner(s)")) input[type="checkbox"]')
+            landowner_data["promoter_is_landowner"] = await promoter_checkbox.is_checked()
+            landowner_data["has_other_landowners"] = await other_landowners_checkbox.is_checked()
+            if landowner_data["has_other_landowners"]:
+                table = container.locator("div.table-responsive > table")
+                await table.wait_for(state="visible", timeout=5000)
+                rows = table.locator("tbody tr")
+                row_count = await rows.count()
+                if row_count == 0 or "no record found" in (await rows.first.inner_text()).lower():
+                    return landowner_data
+                names, types, shares = [], [], []
+                for i in range(row_count):
+                    row = rows.nth(i)
+                    cells = row.locator("td")
+                    if await cells.count() >= 4:
+                        name = (await cells.nth(1).text_content() or "").strip()
+                        owner_type = (await cells.nth(2).text_content() or "").strip()
+                        share_type = (await cells.nth(3).text_content() or "").strip()
+                        names.append(name)
+                        types.append(owner_type)
+                        shares.append(share_type)
+                if names:
+                    landowner_data["landowner_names"] = ", ".join(filter(None, names))
+                    landowner_data["landowner_types"] = ", ".join(filter(None, types))
+                    landowner_data["landowner_share_types"] = ", ".join(filter(None, shares))
+            return landowner_data
+        except Exception as e:
+            self.logger.warning(f"Could not extract promoter landowner details: {e}")
+            return landowner_data
+
 
