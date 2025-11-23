@@ -111,4 +111,37 @@ def get_processed_ids() -> Set[int]:
 
 # ---------------- FIXED function with boolean return for reliability ----------------
 async def process_single_project(page: Page, captcha_solver: CaptchaSolver, data_extracter: DataExtracter, project_id: int, url: str) -> bool:
-    
+    try:
+        await page.goto(url, wait_until='domcontentloaded', timeout=60000)
+
+        success = await captcha_solver.solve_and_fill(
+            page=page,
+            captcha_selector="canvas#captcahCanvas",
+            input_selector="input[name='captcha']",
+            submit_selector="button.btn.btn-primary.next",
+            reg_no=str(project_id)
+        )
+
+        if not success:
+            logger.warning(f"CAPTCHA FAILED for project {project_id}.")
+            return False
+
+        await page.wait_for_load_state('networkidle', timeout=30000)
+       
+        
+        await page.wait_for_timeout(2500)
+
+        data = await data_extracter.extract_project_details(page, str(project_id))
+
+        if data:
+            data["project_id"] = project_id
+            await save_record(data)
+            logger.info(f"✅ SUCCESS: Saved data for project {project_id}")
+            return True # Return True on successful save
+        else:
+            logger.warning(f"Data extraction returned None for project {project_id}.")
+            return False # Return False if no data is extracted
+
+    except Exception as e:
+        logger.error(f"FATAL ERROR processing project {project_id}: {e}", exc_info=False)
+        return False # Return False on any exception
