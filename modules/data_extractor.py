@@ -413,4 +413,26 @@ class DataExtracter:
                         all_tab_data["spa_name"] = ", ".join(filter(None, spa_names))
                         all_tab_data["spa_designation"] = ", ".join(filter(None, spa_desigs))
 
+                    elif matched_key == "Project Professionals":
+                        architects, engineers, chartered_accountants, others = [], [], [], []
+                        for row in rows:
+                            cells = await row.locator("td").all()
+                            if len(cells) > 2:
+                                prof_type = (await cells[1].text_content() or "").strip().lower()
+                                prof_name = (await cells[2].text_content() or "").strip()
+
+                                if "architect" in prof_type:
+                                    architects.append(prof_name)
+                                elif "engineer" in prof_type:
+                                    engineers.append(prof_name)
+                                elif "chartered accountant" in prof_type:
+                                    chartered_accountants.append(prof_name)
+                                else:
+                                    others.append(prof_name)
+
+                        all_tab_data["architect_names"] = ", ".join(filter(None, architects))
+                        all_tab_data["engineer_names"] = ", ".join(filter(None, engineers))
+                        all_tab_data["chartered_accountant_names"] = ", ".join(filter(None, chartered_accountants))
+                        all_tab_data["other_professional_names"] = ", ".join(filter(None, others))
+
 
