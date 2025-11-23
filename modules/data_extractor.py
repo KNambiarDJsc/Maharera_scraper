@@ -136,3 +136,47 @@ class DataExtracter:
         except Exception as e:
             self.logger.error(f"Could not find or process the Planning Authority block: {e}")
             return data
+
+
+    async def _extract_planning_land_block(self, page: Page) -> Dict[str, Optional[str]]:
+        data = {}
+        try:
+            field_map = {
+                'final_plot_bearing': "Final Plot bearing No/CTS Number/Survey Number",
+                'total_land_area': "Total Land Area of Approved Layout (Sq. Mts.)",
+                'land_area_applied': "Land Area for Project Applied for this Registration (Sq. Mts)",
+                'permissible_builtup': "Permissible Built-up Area",
+                'sanctioned_builtup': "Sanctioned Built-up Area of the Project applied for Registration",
+                'aggregate_open_space': "Aggregate area(in sq. mts) of recreational open space as per Layout / DP Remarks"
+            }
+            section_card = page.locator("div.card-header:has-text('Land Area & Address Details')").first
+            form_card = section_card.locator("xpath=ancestor::div[contains(@class, 'form-card')]").first
+            await form_card.wait_for(timeout=5000)
+            white_boxes = form_card.locator("div.white-box")
+            count = await white_boxes.count()
+            for key, expected_label in field_map.items():
+                found = False
+                for i in range(count):
+                    box = white_boxes.nth(i)
+                    try:
+                        label = await box.locator("label").inner_text()
+                        if expected_label.strip() in label.strip():
+                            value_div = box.locator("div.text-font.f-w-700")
+                            await value_div.wait_for(timeout=2000)
+                            value = await value_div.inner_text()
+                            data[key] = value.strip()
+                            found = True
+                            break
+                    except Exception:
+                        continue
+                if not found:
+                    data[key] = None
+                    self.logger.warning(f"Label '{expected_label}' not found in Planning/Land block.")
+            return data
+        except Exception as e:
+            self.logger.warning(f"Could not extract Planning/Land Block at all: {e}")
+            return {}
+
+
+
+        
