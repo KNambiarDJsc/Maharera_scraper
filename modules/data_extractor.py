@@ -342,4 +342,28 @@ class DataExtracter:
                     self.logger.warning(f"Could not click tab '{tab_name}': {e}")
                     continue
 
+                try:
+                    # Agar Promoter Past Experience hai to extra wait de
+                    extra_timeout = 12000 if matched_key == "Promoter Past Experience" else 5000
+
+                    tabs_container = btn.locator("xpath=ancestor::div[contains(@class,'tabs')]")
+                    sibling_candidates = [
+                        tabs_container.locator("xpath=following-sibling::div[1]"),
+                        tabs_container.locator("xpath=following-sibling::div[2]")
+                    ]
+                    table_locator = None
+                    for sib in sibling_candidates:
+                        candidate_table = sib.locator("xpath=.//table").first
+                        try:
+                            await candidate_table.wait_for(state="visible", timeout=extra_timeout)
+                            table_locator = candidate_table
+                            break
+                        except:
+                            continue
+                    if table_locator is None:
+                        self.logger.warning(f"No visible table found for tab '{tab_name}'.")
+                        continue
+
+                    rows = await table_locator.locator("tbody tr").all() if await table_locator.locator("tbody tr").count() > 0 else await table_locator.locator("tr").all()
+
 
