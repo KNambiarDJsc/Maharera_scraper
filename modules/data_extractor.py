@@ -624,4 +624,70 @@ class DataExtracter:
             self.logger.error(f"Could not extract building details: {e}")
             return {key: None for key in header_key_map.values()}
 
+    async def _extract_apartment_summary(self, page: Page) -> Dict[str, Any]:
+        all_keys = {
+            "summary_identification_building_wing": None, "summary_identification_wing_plan": None,
+            "summary_floor_type": None, "summary_total_no_of_residential_apartments": None,
+            "summary_total_no_of_non_residential_apartments": None, "summary_total_no_of_apartments_nr_r": None,
+            "summary_total_no_of_sold_units": None, "summary_total_no_of_unsold_units": None,
+            "summary_total_no_of_booked": None, "summary_total_no_of_rehab_units": None,
+            "summary_total_no_of_mortgage": None, "summary_total_no_of_reservation": None,
+            "summary_total_no_of_land_owner_investor_share_sale": None,
+            "summary_total_no_of_land_owner_investor_share_not_for_sale": None, "total_no_of_apartments": None,
+        }
+        try:
+            container = page.locator("div.white-box:has(b:has-text('Summary of Apartments/Units'))")
+            await container.wait_for(timeout=7000)
+            table = container.locator("table")
+            await table.wait_for(timeout=5000)
+            header_elements = await table.locator("thead th").all()
+            header_count = len(header_elements)
+            if header_count > 10:
+                header_map = {
+                    "Identification of Building/ Wing as per Sanctioned Plan": "summary_identification_building_wing",
+                    "Identification of Wing as per Sanctioned Plan": "summary_identification_wing_plan",
+                    "Floor Type": "summary_floor_type",
+                    "Total No. Of Residential Apartments/ Units": "summary_total_no_of_residential_apartments",
+                    "Total No. Of Non-Residential Apartments/ Units": "summary_total_no_of_non_residential_apartments",
+                    "Total Apartments / Unit (NR+R)": "summary_total_no_of_apartments_nr_r",
+                    "Total No. of Sold Units": "summary_total_no_of_sold_units",
+                    "Total No. of Unsold Units": "summary_total_no_of_unsold_units",
+                    "Total No. of Booked": "summary_total_no_of_booked",
+                    "Total No. of Rehab Units": "summary_total_no_of_rehab_units",
+                    "Total No. of Mortgage": "summary_total_no_of_mortgage",
+                    "Total No. of Reservation": "summary_total_no_of_reservation",
+                    "Total No. of Land Owner/ Investor Share (For Sale)": "summary_total_no_of_land_owner_investor_share_sale",
+                    "Total No. of Land Owner/ Investor Share (Not For Sale)": "summary_total_no_of_land_owner_investor_share_not_for_sale",
+                }
+                temp_data = {key: [] for key in header_map.values()}
+                actual_headers = [(await h.text_content() or "").strip() for h in header_elements if (await h.text_content() or "").strip() != '#']
+                rows = await table.locator("tbody tr").all()
+                for row in rows:
+                    if "Total" in (await row.text_content() or ""): continue
+                    cells = await row.locator("td").all()
+                    row_cells = cells[1:]
+                    for j, header_text in enumerate(actual_headers):
+                        if j < len(row_cells):
+                            cell = row_cells[j]
+                            dict_key = header_map.get(header_text)
+                            if dict_key:
+                                temp_data[dict_key].append((await cell.text_content() or "").strip())
+                for key, values in temp_data.items():
+                    all_keys[key] = ", ".join(values)
+            elif header_count == 5:
+                total_apartments = 0
+                rows = await table.locator("tbody tr").all()
+                for row in rows:
+                    cells = await row.locator("td").all()
+                    if len(cells) == 5:
+                        try:
+                            num_text = (await cells[4].text_content() or "0").strip()
+                            if num_text: total_apartments += int(num_text)
+                        except (ValueError, IndexError): continue
+                all_keys["total_no_of_apartments"] = str(total_apartments)
+            return all_keys
+        except Exception as e:
+            self.logger.error(f"Could not extract apartment summary: {e}")
+            return all_keys
+
 
