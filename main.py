@@ -84,3 +84,15 @@ async def save_record(data: dict):
             df.to_csv(OUTPUT_FILENAME, mode='a', index=False, header=not file_exists)
         except Exception as e:
             logger.error(f"Failed to save record for {data.get('project_id')}: {e}")
+
+async def log_failed_project(project_id: int, url: str):
+    """Appends a single failed project to the failure CSV file in a thread-safe manner."""
+    async with failed_csv_lock:
+        try:
+            file_exists = os.path.exists(FAILED_PROJECTS_FILENAME)
+            with open(FAILED_PROJECTS_FILENAME, 'a', newline='', encoding='utf-8') as f:
+                if not file_exists:
+                    f.write("project_id,url\n")
+                f.write(f"{project_id},{url}\n")
+        except Exception as e:
+            logger.error(f"Failed to log failed project {project_id}: {e}")
