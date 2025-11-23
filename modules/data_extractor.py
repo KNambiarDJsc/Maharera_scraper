@@ -545,4 +545,16 @@ class DataExtracter:
             self.logger.warning(f"Could not extract promoter landowner details: {e}")
             return landowner_data
 
+    async def _extract_investor_flag(self, page: Page) -> Dict[str, Any]:
+        result_key = "are_there_investors_other_than_promoter"
+        try:
+            container = page.locator("div.col-sm-12:has(label:has-text('Are there any Investor other than the Promoter'))")
+            await container.wait_for(timeout=7000)
+            answer_label = container.locator("label.form-label-preview-text > b")
+            answer = (await answer_label.inner_text()).strip()
+            return {result_key: answer}
+        except Exception as e:
+            self.logger.warning(f"Could not extract investor info: {e}")
+            return {result_key: None}
+
 
