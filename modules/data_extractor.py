@@ -51,3 +51,19 @@ class DataExtracter:
         except Exception as e:
             self.logger.error(f"Fatal error extracting data for {reg_no}: {e}")
             return None
+
+    async def _extract_registration_block(self, page: Page) -> Dict[str, str]:
+        try:
+            reg_number = await page.locator("label[for='yourUsername']:has-text('Registration Number')").locator("xpath=following-sibling::label[1]").inner_text(timeout=5000)
+            reg_date = await page.locator("label[for='yourUsername']:has-text('Date of Registration')").locator("xpath=following-sibling::label[1]").inner_text(timeout=5000)
+
+            result = {
+                'registration_number': reg_number.strip(),
+                'date_of_registration': reg_date.strip()
+            }
+
+            self.logger.info(f"Extracted Registration Block: {result}")
+            return result
+        except Exception as e:
+            self.logger.warning(f"Could not extract Registration Block: {e}")
+            return {}
