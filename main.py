@@ -219,3 +219,83 @@ async def retry_worker(playwright, retry_queue, captcha_solver, data_extracter):
         pass
     finally:
         await browser.close()
+
+async def main():
+    """Main function to set up the scraping environment and run workers in parallel."""
+    logger.info("--- Starting MahaRERA Scraper (Chromium Version) ---")
+
+    processed_ids = get_processed_ids()
+    logger.info(f"Found {len(processed_ids)} previously attempted projects. They will be skipped.")
+
+    project_queue = asyncio.Queue()
+    retry_queue = asyncio.Queue()
+
+    # Queue fresh IDs
+    for i in range(START_ID, END_ID + 1):
+        if i not in processed_ids:
+            await project_queue.put(i)
+
+    # Load previous failed attempts
+    if os.path.exists(FAILED_PROJECTS_FILENAME):
+        try:
+            df_failed = pd.read_csv(FAILED_PROJECTS_FILENAME, usecols=['project_id'], on_bad_lines='skip')
+            for pid in df_failed['project_id'].dropna().astype(int).tolist():
+                await retry_queue.put(pid)
+            logger.info(f"Loaded {retry_queue.qsize()} IDs from failed list into retry queue.")
+        except Exception as e:
+            logger.warning(f"Failed to preload failed IDs: {e}")
+
+    total_to_process = project_queue.qsize()
+    logger.info(f"Queued {total_to_process} new projects for scraping.")
+
+    if total_to_process == 0 and retry_queue.qsize() == 0:
+        logger.info("No new or failed projects to process. Exiting.")
+        return
+
+    captcha_solver = CaptchaSolver()
+    data_extracter = DataExtracter()
+
+    async with async_playwright() as p:
+        tasks = []
+
+        # Start NORMAL workers (Chromium version)
+        for _ in range(NORMAL_WORKERS):
+            tasks.append(asyncio.create_task(
+                normal_worker(
+                    p,
+                    project_queue,
+                    retry_queue,
+                    captcha_solver,
+                    data_extracter
+                )
+            ))
+
+        # Start RETRY workers (Chromium version)
+        for _ in range(RETRY_WORKERS):
+            tasks.append(asyncio.create_task(
+                retry_worker(
+                    p,
+                    retry_queue,
+                    captcha_solver,
+                    data_extracter
+                )
+            ))
+
+        # Wait for NORMAL queue to finish
+        await project_queue.join()
+
+        # Now process RETRY queue (but do not wait forever)
+        try:
+            await asyncio.wait_for(retry_queue.join(), timeout=300.0)
+        except asyncio.TimeoutError:
+            logger.warning("Retry queue processing timed out. Some projects might remain failed.")
+
+        # Cancel all workers gracefully
+        for task in tasks:
+            task.cancel()
+
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+    logger.info("--- SCRAPING RUN COMPLETE ---")
+    logger.info(f"Successful data saved to: {OUTPUT_FILENAME}")
+    logger.info(f"Failed/Skipped projects logged in: {FAILED_PROJECTS_FILENAME}")
