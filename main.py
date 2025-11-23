@@ -145,3 +145,25 @@ async def process_single_project(page: Page, captcha_solver: CaptchaSolver, data
     except Exception as e:
         logger.error(f"FATAL ERROR processing project {project_id}: {e}", exc_info=False)
         return False # Return False on any exception
+
+# ---------------- Helper functions for retry system ----------------
+async def remove_from_failed(project_id: int):
+    """Remove a project ID from failed CSV after a successful retry."""
+    async with failed_csv_lock:
+        if not os.path.exists(FAILED_PROJECTS_FILENAME):
+            return
+        try:
+            rows = []
+            fieldnames = ['project_id', 'url']
+            with open(FAILED_PROJECTS_FILENAME, 'r', newline='', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                fieldnames = reader.fieldnames or fieldnames
+                for row in reader:
+                    if str(row.get('project_id')) != str(project_id):
+                        rows.append(row)
+            with open(FAILED_PROJECTS_FILENAME, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(rows)
+        except Exception as e:
+            logger.error(f"Error removing project {project_id} from failed list: {e}")
