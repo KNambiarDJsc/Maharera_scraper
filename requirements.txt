@@ -1,0 +1,18 @@
+# --- Browser automation ---
+playwright
+playwright-stealth
+
+# --- OCR & Image Processing ---
+opencv-python
+pytesseract
+Pillow
+
+# --- Data & Utils ---
+numpy
+pandas
+tqdm
+python-dotenv
+pydantic
+requests
+loguru
+aiofiles
