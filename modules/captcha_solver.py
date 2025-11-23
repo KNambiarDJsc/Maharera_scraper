@@ -22,3 +22,24 @@ class CaptchaSolver:
         blur = cv2.GaussianBlur(gray, (3, 3), 0)
         _, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         return Image.fromarray(thresh)
+    
+
+    async def extract_text(self, image_bytes):
+        """Run OCR on captcha image with multiple configs."""
+        processed_img = await self.preprocess_image(image_bytes)
+        
+        configs = [
+            '--psm 8 --oem 3 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+            '--psm 7 --oem 3 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+        ]
+
+        results = []
+        for img in [Image.open(io.BytesIO(image_bytes)), processed_img]:
+            for config in configs:
+                text = pytesseract.image_to_string(img, config=config).strip()
+                if text and len(text) == 6 and text.isalnum():
+                    results.append(text.upper())
+        if results:
+            return max(set(results), key=results.count)
+        return None
+    
