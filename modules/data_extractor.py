@@ -446,4 +446,11 @@ class DataExtracter:
                         all_tab_data["sro_name"] = ", ".join(filter(None, sro_names))
                         all_tab_data["sro_document_name"] = ", ".join(filter(None, doc_names))
 
+                except Exception as e:
+                    self.logger.warning(f"Could not process data in tab '{tab_name}': {e}")
+            return all_tab_data
+        except Exception as e:
+            self.logger.error(f"Fatal error during tab extraction: {e}")
+            return {}
+
 
