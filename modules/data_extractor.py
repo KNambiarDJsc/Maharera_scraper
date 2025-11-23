@@ -453,4 +453,60 @@ class DataExtracter:
             self.logger.error(f"Fatal error during tab extraction: {e}")
             return {}
 
+    async def _extract_latest_form_dates(self, page: Page) -> Dict[str, Optional[str]]:
+        latest_dates = {
+            "latest_form1_date": None,
+            "latest_form2_date": None,
+            "latest_form5_date": None,
+            "has_occupancy_certificate": False  # <-- new boolean field
+        }
+        try:
+            from datetime import datetime
+
+            button = page.locator('h2#headingOne >> button[aria-controls="documentLibrary"]')
+            await button.wait_for(state="visible", timeout=7000)
+
+            table = page.locator('div#documentLibrary table')
+            if not await table.is_visible():
+                await button.scroll_into_view_if_needed()
+                await button.click()
+                await table.wait_for(state="visible", timeout=5000)
+
+            rows = await table.locator('tbody tr').all()
+
+            # Track latest dates for Form 1, Form 2, Form 5
+            parsed_dates = { "Form 1": None, "Form 2": None, "Form 5": None }
+
+            for row in rows:
+                cells = await row.locator('td').all()
+                if len(cells) >= 4:
+                    document_type = (await cells[1].text_content() or "").strip()
+                    created_date_str = (await cells[3].text_content() or "").strip()
+
+                    # Check for Occupancy Certificate
+                    if "occupancy certificate" in document_type.lower():
+                        latest_dates["has_occupancy_certificate"] = True
+
+                    try:
+                        current_date = datetime.strptime(created_date_str, '%d/%m/%Y, %I:%M %p')
+                        for form_name in parsed_dates.keys():
+                            if form_name in document_type:
+                                if parsed_dates[form_name] is None or current_date > parsed_dates[form_name]:
+                                    parsed_dates[form_name] = current_date
+                    except ValueError:
+                        continue
+
+            if parsed_dates["Form 1"]:
+                latest_dates["latest_form1_date"] = parsed_dates["Form 1"].strftime('%d/%m/%Y, %I:%M %p')
+            if parsed_dates["Form 2"]:
+                latest_dates["latest_form2_date"] = parsed_dates["Form 2"].strftime('%d/%m/%Y, %I:%M %p')
+            if parsed_dates["Form 5"]:
+                latest_dates["latest_form5_date"] = parsed_dates["Form 5"].strftime('%d/%m/%Y, %I:%M %p')
+
+            return latest_dates
+
+        except Exception as e:
+            self.logger.error(f"Could not extract form dates: {e}")
+            return latest_dates
+
 
