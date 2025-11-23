@@ -67,3 +67,45 @@ class DataExtracter:
         except Exception as e:
             self.logger.warning(f"Could not extract Registration Block: {e}")
             return {}
+
+    async def _extract_project_details_block(self, page: Page) -> Dict[str, str]:
+        data = {}
+
+        fields = {
+            'project_name': "Project Name",
+            'project_type': "Project Type",
+            'project_location': "Project Location",
+            'proposed_completion_date': "Proposed Completion Date (Original)"
+        }
+
+        try:
+            for key, label in fields.items():
+                
+                await page.wait_for_selector("div:has-text('Project Name')", timeout=10000)
+                locator = page.locator(f"div:text-is('{label}')").nth(0)
+                value_locator = locator.locator("xpath=following-sibling::div[1]")
+                value = await value_locator.inner_text(timeout=5000)
+                data[key] = value.strip()
+
+            try:
+                ext_label = "Proposed Completion Date (Revised)"
+                ext_locator = page.locator(f"div:text-is('{ext_label}')").nth(0)
+                ext_value_locator = ext_locator.locator("xpath=following-sibling::div[1]")
+                ext_value = await ext_value_locator.inner_text(timeout=3000)
+                data['extension_date'] = ext_value.strip()
+            except Exception:
+                data['extension_date'] = None
+
+            try:
+                status_label = page.locator("span:text-is('Project Status')").first
+                status_value = await status_label.locator("xpath=../../following-sibling::div[1]//span").inner_text(timeout=3000)
+                data['project_status'] = status_value.strip()
+            except Exception:
+                data['project_status'] = None
+
+            self.logger.info(f"Extracted Project Details: {data}")
+            return data
+
+        except Exception as e:
+            self.logger.warning(f"Could not extract Project Details Block: {e}")
+            return {}
