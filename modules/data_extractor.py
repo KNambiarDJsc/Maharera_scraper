@@ -436,3 +436,14 @@ class DataExtracter:
                         all_tab_data["other_professional_names"] = ", ".join(filter(None, others))
 
 
+                    elif matched_key == "SRO Details":
+                        sro_names, doc_names = [], []
+                        for row in rows:
+                            cells = await row.locator("td").all()
+                            if len(cells) > 2:
+                                sro_names.append((await cells[1].text_content() or "").strip())
+                                doc_names.append((await cells[2].text_content() or "").strip())
+                        all_tab_data["sro_name"] = ", ".join(filter(None, sro_names))
+                        all_tab_data["sro_document_name"] = ", ".join(filter(None, doc_names))
+
+
