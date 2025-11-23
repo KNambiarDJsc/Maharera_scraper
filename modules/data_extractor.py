@@ -273,6 +273,28 @@ class DataExtracter:
             self.logger.warning(f"Could not extract Promoter Details: {e}")
             return {"promoter_details": None}
 
+    async def _extract_promoter_address(self, page: Page) -> Dict[str, str]:
+        address_details = {}
+        try:
+            header = page.locator("h5:has-text('Promoter Official Communication Address')")
+            section = header.locator("xpath=ancestor::fieldset[1]")
+            await section.wait_for(timeout=5000)
+            fields_to_extract = ['State/UT', 'District', 'Taluka', 'Village', 'Pin Code']
+            for field in fields_to_extract:
+                label_locator = section.locator(f"label:has-text('{field}')")
+                value_text = None
+                if await label_locator.count() > 0:
+                    value_locator = label_locator.locator("xpath=./following-sibling::div/div")
+                    if await value_locator.count() > 0:
+                        value_text = (await value_locator.first.text_content() or "").strip()
+                key_suffix = re.sub(r'[^a-z0-9_]', '', field.lower().replace(' ', '_').replace('/', '_'))
+                dict_key = f"promoter_official_communication_address_{key_suffix}"
+                address_details[dict_key] = value_text
+            return address_details
+        except Exception as e:
+            self.logger.warning(f"Could not extract Promoter Address details: {e}")
+            return { f"promoter_official_communication_address_{re.sub(r'[^a-z0-9_]', '', field.lower().replace(' ', '_').replace('/', '_'))}": None for field in fields_to_extract }
+
 
 
         
