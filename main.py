@@ -69,3 +69,18 @@ DESIRED_ORDER = [
     "complaint_count", "complaint_numbers", "real_estate_agent_names",
     "maharera_certificate_nos"
 ]
+
+# --- Thread-safe file writing locks ---
+csv_lock = asyncio.Lock()
+failed_csv_lock = asyncio.Lock()
+
+async def save_record(data: dict):
+    """Appends a single successful record to the main CSV file in a thread-safe manner."""
+    async with csv_lock:
+        try:
+            df = pd.json_normalize([data])
+            df = df.reindex(columns=DESIRED_ORDER)
+            file_exists = os.path.exists(OUTPUT_FILENAME)
+            df.to_csv(OUTPUT_FILENAME, mode='a', index=False, header=not file_exists)
+        except Exception as e:
+            logger.error(f"Failed to save record for {data.get('project_id')}: {e}")
