@@ -690,4 +690,44 @@ class DataExtracter:
             self.logger.error(f"Could not extract apartment summary: {e}")
             return all_keys
 
+    async def _extract_parking_details(self, page: Page) -> Dict[str, Any]:
+        results = { "open_space_parking_total": None, "closed_space_parking_total": None }
+        try:
+            button = page.locator("button:has-text('Parking Details')")
+            await button.wait_for(timeout=7000)
+            parking_section = page.locator("div#parkingDetails")
+            if not "show" in (await parking_section.get_attribute("class") or ""):
+                await button.click()
+                # FIX: Replaced flaky expect with a more reliable wait for the table inside.
+                await parking_section.locator("table").first.wait_for(state="visible", timeout=5000)
+            
+            tables = parking_section.locator("div.table-responsive > table")
+            table_count = await tables.count()
+            if table_count == 0:
+                return results
+            open_counts, closed_counts = [], []
+            for i in range(table_count):
+                table = tables.nth(i)
+                rows = await table.locator("tbody tr").all()
+                open_sum_for_table, closed_sum_for_table = 0, 0
+                for row in rows:
+                    cells = await row.locator("td").all()
+                    if len(cells) < 8: continue
+                    try:
+                        parking_type = (await cells[1].inner_text()).strip().lower()
+                        count_text = (await cells[6].inner_text()).strip()
+                        count = int(count_text) if count_text.isdigit() else 0
+                        if "open" in parking_type: open_sum_for_table += count
+                        elif "closed" in parking_type or "covered" in parking_type: closed_sum_for_table += count
+                    except (ValueError, IndexError):
+                        continue
+                open_counts.append(str(open_sum_for_table))
+                closed_counts.append(str(closed_sum_for_table))
+            results["open_space_parking_total"] = ", ".join(open_counts)
+            results["closed_space_parking_total"] = ", ".join(closed_counts)
+            return results
+        except Exception as e:
+            self.logger.warning(f"Could not extract parking details: {e}")
+            return results
+
 
