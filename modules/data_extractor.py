@@ -177,6 +177,102 @@ class DataExtracter:
             self.logger.warning(f"Could not extract Planning/Land Block at all: {e}")
             return {}
 
+    async def _extract_commencement_certificate(self, page: Page) -> Dict[str, str]:
+        data = { "CC/NA Order Issued to": "", "CC/NA Order in the name of": "" }
+        try:
+            section = page.locator("div:has(h5.card-title.mb-0:has-text('Commencement Certificate / NA Order Documents Details'))")
+            divOfTable=section.locator("xpath=following-sibling::div[1]");
+            table = divOfTable.locator("table:has-text('CC/NA Order Issued to')")
+            await table.wait_for(timeout=5000)
+            rows = table.locator("tbody tr")
+            count = await rows.count()
+            if count == 0 or "No-Data-Found" in (await rows.first.inner_text()):
+                self.logger.info("No Commencement Certificate data found in the table.")
+                return data
+            col2_values, col3_values = [], []
+            for i in range(count):
+                row = rows.nth(i)
+                try:
+                    col2 = await row.locator("td:nth-child(2)").inner_text()
+                    col3 = await row.locator("td:nth-child(3)").inner_text()
+                    col2_values.append(col2.strip())
+                    col3_values.append(col3.strip())
+                except Exception as e:
+                    self.logger.warning(f"Could not process a row in Commencement Certificate table: {e}")
+                    continue
+            data["CC/NA Order Issued to"] = ", ".join(col2_values)
+            data["CC/NA Order in the name of"] = ", ".join(col3_values)
+            return data
+        except Exception as e:
+            self.logger.warning(f"Could not extract Commencement Certificate details: {e}")
+            return data
+
+    async def _extract_project_address(self, page: Page) -> Dict[str, str]:
+        target_labels = ["State/UT", "District", "Taluka", "Village", "Pin Code"]
+        results = {}
+
+        try:
+            header = page.locator("h5.card-title:has-text('Project Address Details')")
+            await header.wait_for(timeout=10000)
+            section = header.locator("xpath=ancestor::div[contains(@class, 'white-box')]")
+
+            for label in target_labels:
+                key_name = f"project_address_{label.lower().replace('/', '_').replace(' ', '_')}"
+                try:
+                    label_locator = section.locator(f"label.form-label:has-text('{label}')")
+                    if not await label_locator.count():
+                        results[key_name] = None
+                        continue
+
+                    value_locator = label_locator.locator("xpath=following-sibling::*[1]")
+                    child_div_locator = value_locator.locator("div")
+
+                    if await child_div_locator.count():
+                        await child_div_locator.first.wait_for(timeout=3000)
+                        value_text = (await child_div_locator.first.text_content() or "").strip()
+                    else:
+                        value_text = None
+
+                    results[key_name] = value_text if value_text else None
+                except Exception:
+                    results[key_name] = None
+
+        except Exception as e:
+            self.logger.warning(f"Could not extract some location fields: {e}")
+            # Ensure all keys are present in case of complete failure
+            for label in target_labels:
+                key_name = f"project_address_{label.lower().replace('/', '_').replace(' ', '_')}"
+                results.setdefault(key_name, None)
+
+        return results
+
+    async def _extract_promoter_details(self, page: Page) -> Dict[str, str]:
+        try:
+            header = page.locator("h5.card-title:has-text('Promoter Details')").first
+            await header.wait_for(timeout=10000)
+            section = header.locator("xpath=ancestor::fieldset[1]")
+            await section.wait_for(timeout=5000)
+            outer_row = section.locator("xpath=.//div[contains(@class,'row')][.//label]").first
+            cols = outer_row.locator("xpath=.//div[contains(@class,'col')][.//label]")
+            total_cols = await cols.count()
+            details = []
+            for i in range(total_cols):
+                col = cols.nth(i)
+                label_loc = col.locator("label")
+                if await label_loc.count() == 0:
+                    continue
+                label_text = (await label_loc.first.text_content() or "").strip().rstrip(":")
+                value_loc = col.locator("xpath=.//*[self::div or self::span][normalize-space(string(.))!=''][1]")
+                raw_value_text = (await value_loc.first.text_content() or "").strip() if await value_loc.count() > 0 else ""
+                value_text = raw_value_text.replace(label_text, "").strip()
+                if label_text and value_text:
+                    details.append(f"{label_text} - {value_text}")
+            promoter_details_str = ", ".join(details) if details else None
+            return {"promoter_details": promoter_details_str}
+        except Exception as e:
+            self.logger.warning(f"Could not extract Promoter Details: {e}")
+            return {"promoter_details": None}
+
 
 
         
