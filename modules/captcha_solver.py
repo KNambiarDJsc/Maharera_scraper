@@ -10,3 +10,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 class CaptchaSolver:
+    def __init__(self, captcha_dir="./captchas"):
+        self.captcha_dir = captcha_dir
+        os.makedirs(self.captcha_dir, exist_ok=True)
