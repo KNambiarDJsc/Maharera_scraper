@@ -95,4 +95,16 @@ async def log_failed_project(project_id: int, url: str):
                     f.write("project_id,url\n")
                 f.write(f"{project_id},{url}\n")
         except Exception as e:
-            logger.error(f"Failed to log failed project {project_id}: {e}")
+            logger.error(f"Failed to log failed project {project_id}: {e}")  
+
+def get_processed_ids() -> Set[int]:
+    """Reads both success and failure CSVs to get a set of all IDs that have been attempted."""
+    processed_ids = set()
+    for filename in [OUTPUT_FILENAME, FAILED_PROJECTS_FILENAME]:
+        if os.path.exists(filename):
+            try:
+                df = pd.read_csv(filename, usecols=['project_id'], on_bad_lines='skip')
+                processed_ids.update(df['project_id'].dropna().astype(int).tolist())
+            except (ValueError, KeyError, FileNotFoundError) as e:
+                logger.warning(f"Could not read project_id column from {filename}. It might be empty or malformed. Error: {e}")
+    return processed_ids
