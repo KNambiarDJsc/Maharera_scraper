@@ -299,3 +299,6 @@ async def main():
     logger.info("--- SCRAPING RUN COMPLETE ---")
     logger.info(f"Successful data saved to: {OUTPUT_FILENAME}")
     logger.info(f"Failed/Skipped projects logged in: {FAILED_PROJECTS_FILENAME}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
