@@ -557,4 +557,25 @@ class DataExtracter:
             self.logger.warning(f"Could not extract investor info: {e}")
             return {result_key: None}
 
+    async def _extract_litigation_details(self, page: Page) -> Dict[str, Any]:
+        result_key = "litigation_against_project_count"
+        try:
+            litigation_container = page.locator("div.white-box:has(b:has-text('Litigation Details'))")
+            await litigation_container.wait_for(timeout=7000)
+            question_container = litigation_container.locator("div:has-text('Is there any litigation against this proposed project :  ')")
+            answer_label = question_container.locator("label.form-label-preview-text  ")
+            answer_text = (await answer_label.inner_text()).strip().lower()
+            if answer_text == "no":
+                return {result_key: 0}
+            table = litigation_container.locator("div.table-responsive > table")
+            await table.wait_for(timeout=5000)
+            rows = table.locator("tbody > tr")
+            row_count = await rows.count()
+            if row_count == 1 and ("no data" in (await rows.first.text_content() or "").lower() or "no record" in (await rows.first.text_content() or "").lower()):
+                return {result_key: 0}
+            return {result_key: row_count}
+        except Exception as e:
+            self.logger.warning(f"Could not extract litigation info: {e}")
+            return {result_key: None}
+
 
