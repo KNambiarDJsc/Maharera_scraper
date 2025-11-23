@@ -295,6 +295,51 @@ class DataExtracter:
             self.logger.warning(f"Could not extract Promoter Address details: {e}")
             return { f"promoter_official_communication_address_{re.sub(r'[^a-z0-9_]', '', field.lower().replace(' ', '_').replace('/', '_'))}": None for field in fields_to_extract }
 
+    async def _extract_all_tab_data(self, page: Page) -> Dict[str, Any]:
+        self.logger.info("--- Starting Robust Sequential Tab Extraction ---")
+        all_tab_data: Dict[str, Any] = {}
+        TAB_SELECTOR_MAP = {
+            "Partner Details": "partner_details",
+            "Director Details": "partner_details",  # <-- same logic
+            "Promoter Past Experience": "promoter_past_experience",
+            "Authorised Signatory": "authorised_signatory",
+            "Single Point of Contact":"single_point_of_contact",
+            "Project Professionals": "project_professionals",
+            "SRO Details": "sro_details",
+        }
+        SKIP_TABS = [ "Allottee Grievance"]
+        try:
+            tab_buttons = await page.locator(".tabs button").all()
+            self.logger.info(f"Found {len(tab_buttons)} tab buttons.")
+
+            for idx, btn in enumerate(tab_buttons, start=1):
+                try:
+                    raw_name = (await btn.text_content()) or ""
+                except Exception as e:
+                    self.logger.warning(f"Could not get text for tab button #{idx}: {e}")
+                    continue
+
+                tab_name = raw_name.strip()
+                if not tab_name:
+                    continue
+
+                # Skip if it's in SKIP_TABS
+                if any(skip in tab_name for skip in SKIP_TABS):
+                    continue
+
+                matched_key = next((k for k in TAB_SELECTOR_MAP if k.lower() in tab_name.lower()), None)
+                if not matched_key:
+                    continue
+
+                # Safe click only if visible & enabled
+                try:
+                    if not await btn.is_visible():
+                        self.logger.info(f"Skipping hidden tab '{tab_name}'")
+                        continue
+                    await btn.scroll_into_view_if_needed()
+                    await btn.click(force=True)
+                except Exception as e:
+                    self.logger.warning(f"Could not click tab '{tab_name}': {e}")
+                    continue
 
 
-        
