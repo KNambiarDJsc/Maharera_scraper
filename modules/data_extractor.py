@@ -750,4 +750,31 @@ class DataExtracter:
             self.logger.error(f"Failed to extract bank details section: {e}")
             return result
 
+    async def _extract_complaint_details(self, page: Page) -> Dict[str, Any]:
+        result = { "complaint_count": 0, "complaint_numbers": None }
+        try:
+            container = page.locator("div.white-box:has(b:has-text('Complaint Details'))")
+            await container.wait_for(timeout=7000)
+            table = container.locator("div.table-responsive > table")
+            await table.wait_for(timeout=5000)
+            rows = table.locator("tbody tr")
+            row_count = await rows.count()
+            if row_count == 0 or (row_count == 1 and ("no data" in (await rows.first.text_content() or "").lower() or "no record" in (await rows.first.text_content() or "").lower())):
+                return result
+            complaint_numbers = []
+            for i in range(row_count):
+                row = rows.nth(i)
+                cells = await row.locator("td").all()
+                if len(cells) > 1:
+                    complaint_no = (await cells[1].text_content() or "").strip()
+                    if complaint_no:
+                        complaint_numbers.append(complaint_no)
+            if complaint_numbers:
+                result["complaint_count"] = len(complaint_numbers)
+                result["complaint_numbers"] = ", ".join(complaint_numbers)
+            return result
+        except Exception as e:
+            self.logger.warning(f"Could not extract complaint details: {e}")
+            return result
+
 
