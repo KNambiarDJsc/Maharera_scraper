@@ -777,4 +777,37 @@ class DataExtracter:
             self.logger.warning(f"Could not extract complaint details: {e}")
             return result
 
+    async def _extract_real_estate_agents(self, page: Page) -> Dict[str, Any]:
+        result = { "real_estate_agent_names": None, "maharera_certificate_nos": None }
+        try:
+            button = page.locator("button:has-text('Registered Agent(s)')")
+            await button.wait_for(timeout=7000)
+            target_id = await button.get_attribute("data-bs-target")
+            if not target_id:
+                raise Exception("Could not find 'data-bs-target' on the agent accordion button.")
+            table = page.locator(f"{target_id} div.table-responsive > table")
+            if not await table.is_visible():
+                await button.click()
+                await table.wait_for(state="visible", timeout=5000)
+            rows = table.locator("tbody tr")
+            row_count = await rows.count()
+            if row_count == 0 or (row_count == 1 and ("no data" in (await rows.first.text_content() or "").lower() or "no record" in (await rows.first.text_content() or "").lower())):
+                return result
+            agent_names, cert_numbers = [], []
+            for i in range(row_count):
+                row = rows.nth(i)
+                cells = await row.locator("td").all()
+                if len(cells) > 2:
+                    name = (await cells[1].text_content() or "").strip()
+                    cert_no = (await cells[2].text_content() or "").strip()
+                    if name: agent_names.append(name)
+                    if cert_no: cert_numbers.append(cert_no)
+            if agent_names: result["real_estate_agent_names"] = ", ".join(agent_names)
+            if cert_numbers: result["maharera_certificate_nos"] = ", ".join(cert_numbers)
+            return result
+        except Exception as e:
+            self.logger.warning(f"Could not extract real estate agent details: {e}")
+            # FIX: Corrected the typo from 'res' to 'result'
+            return result
+
 
