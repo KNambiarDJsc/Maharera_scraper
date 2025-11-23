@@ -43,3 +43,44 @@ class CaptchaSolver:
             return max(set(results), key=results.count)
         return None
     
+    async def solve_and_fill(
+        self,
+        page,
+        captcha_selector,
+        input_selector,
+        submit_selector,
+        reg_no
+    ):
+        """Solve captcha with only ONE attempt. Return success or failure."""
+        logger.info(f"Attempting to solve captcha for {reg_no} (1 attempt only).")
+        try:
+            # Wait for captcha element and take screenshot
+            captcha_el = await page.wait_for_selector(captcha_selector, timeout=10000)
+            captcha_bytes = await captcha_el.screenshot(type="png", scale="device")
+
+            # Extract OCR text
+            captcha_text = await self.extract_text(captcha_bytes)
+            logger.info(f"[DEBUG] OCR extracted: {captcha_text}")
+
+            if captcha_text:
+                # Fill input and submit
+                await page.fill(input_selector, captcha_text)
+                await page.click(submit_selector)
+
+                # Success check: Wait for captcha to disappear
+                try:
+                    await page.wait_for_selector(captcha_selector, state="detached", timeout=5000)
+                    logger.info(f"✅ Captcha solved successfully for {reg_no}")
+                    return True # Success
+                except Exception:
+                    logger.warning(f"Captcha incorrect for {reg_no}. Marking as failed.")
+                    return False # Failure (incorrect captcha)
+            else:
+                logger.warning(f"OCR failed to read text for {reg_no}. Marking as failed.")
+                return False # Failure (OCR couldn't read)
+
+        except Exception as e:
+            logger.error(f"Error during captcha solve attempt for {reg_no}: {e}")
+            return False # Failure (any other error)
+        
+    
