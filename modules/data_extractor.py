@@ -366,4 +366,18 @@ class DataExtracter:
 
                     rows = await table_locator.locator("tbody tr").all() if await table_locator.locator("tbody tr").count() > 0 else await table_locator.locator("tr").all()
 
+                    if matched_key in ["Partner Details", "Director Details"]:
+                        names, desigs = [], []
+                        for row in rows:
+                            cells = await row.locator("td").all()
+                            if len(cells) > 2:
+                                names.append((await cells[1].text_content() or "").strip())
+                                desigs.append((await cells[2].text_content() or "").strip())
+                        all_tab_data["partner_name"] = (all_tab_data.get("partner_name", "") + 
+                                                        (", " if all_tab_data.get("partner_name") else "") +
+                                                        ", ".join(filter(None, names)))
+                        all_tab_data["partner_designation"] = (all_tab_data.get("partner_designation", "") +
+                                                            (", " if all_tab_data.get("partner_designation") else "") +
+                                                            ", ".join(filter(None, desigs)))
+
 
