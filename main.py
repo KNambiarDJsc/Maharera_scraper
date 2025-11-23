@@ -167,3 +167,8 @@ async def remove_from_failed(project_id: int):
                 writer.writerows(rows)
         except Exception as e:
             logger.error(f"Error removing project {project_id} from failed list: {e}")
+
+async def log_failed_and_enqueue(project_id: int, url: str, retry_queue: asyncio.Queue):
+    """Append to failed CSV and push ID to retry queue."""
+    await log_failed_project(project_id, url)
+    await retry_queue.put(project_id)
