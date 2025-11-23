@@ -172,3 +172,26 @@ async def log_failed_and_enqueue(project_id: int, url: str, retry_queue: asyncio
     """Append to failed CSV and push ID to retry queue."""
     await log_failed_project(project_id, url)
     await retry_queue.put(project_id)
+
+
+async def normal_worker(playwright, project_queue, retry_queue, captcha_solver, data_extracter):
+    browser, context, page = await create_chromium_context(playwright)
+
+    try:
+        while True:
+            project_id = await project_queue.get()
+            url = f"{BASE_URL}{project_id}"
+            logger.info(f"[NORMAL] Processing {project_id}")
+
+            ok = await process_single_project(page, captcha_solver, data_extracter, project_id, url)
+
+            if not ok:
+                await log_failed_project(project_id, url)
+                await retry_queue.put(project_id)
+
+            project_queue.task_done()
+
+    except asyncio.CancelledError:
+        pass
+    finally:
+        await browser.close()
