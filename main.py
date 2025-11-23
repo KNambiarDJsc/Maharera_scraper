@@ -108,3 +108,7 @@ def get_processed_ids() -> Set[int]:
             except (ValueError, KeyError, FileNotFoundError) as e:
                 logger.warning(f"Could not read project_id column from {filename}. It might be empty or malformed. Error: {e}")
     return processed_ids
+
+# ---------------- FIXED function with boolean return for reliability ----------------
+async def process_single_project(page: Page, captcha_solver: CaptchaSolver, data_extracter: DataExtracter, project_id: int, url: str) -> bool:
+    
