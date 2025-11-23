@@ -195,3 +195,27 @@ async def normal_worker(playwright, project_queue, retry_queue, captcha_solver, 
         pass
     finally:
         await browser.close()
+    
+
+async def retry_worker(playwright, retry_queue, captcha_solver, data_extracter):
+    browser, context, page = await create_chromium_context(playwright)
+
+    try:
+        while True:
+            project_id = await retry_queue.get()
+            url = f"{BASE_URL}{project_id}"
+            logger.info(f"[RETRY] Retrying {project_id}")
+
+            ok = await process_single_project(page, captcha_solver, data_extracter, project_id, url)
+
+            if not ok:
+                logger.warning(f"[RETRY] Failed again: {project_id}")
+                await asyncio.sleep(1)
+                await retry_queue.put(project_id)
+
+            retry_queue.task_done()
+
+    except asyncio.CancelledError:
+        pass
+    finally:
+        await browser.close()
