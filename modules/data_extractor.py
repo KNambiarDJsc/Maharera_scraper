@@ -380,4 +380,37 @@ class DataExtracter:
                                                             (", " if all_tab_data.get("partner_designation") else "") +
                                                             ", ".join(filter(None, desigs)))
 
+                    elif matched_key == "Promoter Past Experience":
+                        names, statuses, litigations = [], [], []
+                        for row in rows:
+                            cells = await row.locator("td").all()
+                            if len(cells) > 5:
+                                names.append((await cells[1].text_content() or "").strip())
+                                statuses.append((await cells[4].text_content() or "").strip())
+                                litigations.append((await cells[5].text_content() or "").strip())
+                        all_tab_data["promoter_past_project_names"] = ", ".join(filter(None, names))
+                        all_tab_data["promoter_past_project_statuses"] = ", ".join(filter(None, statuses))
+                        all_tab_data["promoter_past_litigation_statuses"] = ", ".join(filter(None, litigations))
+
+                    elif matched_key == "Authorised Signatory":
+                        names, desigs = [], []
+                        for row in rows:
+                            cells = await row.locator("td").all()
+                            if len(cells) > 2:
+                                names.append((await cells[1].text_content() or "").strip())
+                                desigs.append((await cells[2].text_content() or "").strip())
+                        all_tab_data["authorised_signatory_names"] = ", ".join(filter(None, names))
+                        all_tab_data["authorised_signatory_designations"] = ", ".join(filter(None, desigs))
+
+
+                    elif matched_key =="Single Point of Contact":
+                        spa_names, spa_desigs = [], []
+                        for row in rows:
+                            cells = await row.locator("td").all()
+                            if len(cells) > 2:
+                                spa_names.append((await cells[1].text_content() or "").strip())
+                                spa_desigs.append((await cells[2].text_content() or "").strip())
+                        all_tab_data["spa_name"] = ", ".join(filter(None, spa_names))
+                        all_tab_data["spa_designation"] = ", ".join(filter(None, spa_desigs))
+
 
