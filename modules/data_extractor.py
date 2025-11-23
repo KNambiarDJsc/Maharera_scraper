@@ -109,3 +109,30 @@ class DataExtracter:
         except Exception as e:
             self.logger.warning(f"Could not extract Project Details Block: {e}")
             return {}
+
+    async def _extract_planning_authority_block(self, page: Page) -> Dict[str, Optional[str]]:
+        data = {
+            "planning_authority": None,
+            "full_name_of_planning_authority": None
+        }
+        try:
+            container = page.locator('div.row:has-text("Planning Authority")').first
+            await container.wait_for(timeout=5000)
+            try:
+                label_pa = container.locator('span:has-text("Planning Authority")')
+                value_pa_locator = label_pa.locator("xpath=./ancestor::div[contains(@class, 'col-12 text-font')]/following-sibling::div[1]/p").first
+                value_pa = await value_pa_locator.inner_text()
+                data["planning_authority"] = value_pa.strip() if value_pa else None
+            except Exception as e:
+                self.logger.warning(f"Could not extract 'Planning Authority' value: {e}")
+            try:
+                label_fn = container.locator('span:has-text("Full Name of the Planning Authority")')
+                value_fn_locator = label_fn.locator("xpath=./ancestor::div[contains(@class, 'col-12 text-font')]/following-sibling::div[1]/p").first
+                value_fn = await value_fn_locator.inner_text()
+                data["full_name_of_planning_authority"] = value_fn.strip() if value_fn else None
+            except Exception as e:
+                self.logger.warning(f"Could not extract 'Full Name of the Planning Authority' value: {e}")
+            return data
+        except Exception as e:
+            self.logger.error(f"Could not find or process the Planning Authority block: {e}")
+            return data
