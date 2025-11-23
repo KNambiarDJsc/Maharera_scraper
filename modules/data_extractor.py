@@ -578,4 +578,50 @@ class DataExtracter:
             self.logger.warning(f"Could not extract litigation info: {e}")
             return {result_key: None}
 
+    async def _extract_building_details(self, page: Page) -> Dict[str, Any]:
+        def normalize(text: str) -> str:
+            return " ".join(text.split()).strip().lower()
+        header_key_map = {
+            "Identification of Building/ Wing as per Sanctioned Plan": "building_identification_plan",
+            "Identification of Wing as per Sanctioned Plan": "wing_identification_plan",
+            "Number of Sanctioned Floors (Including Basement+ Stilt+ Podium+ Service+ Habitable excluding terrace)": "sanctioned_floors",
+            "Total No. of Building Sanctioned Habitable Floor": "sanctioned_habitable_floors",
+            "Sanctioned Apartments / Unit (NR+R)": "sanctioned_apartments",
+            "CC Issued up-to (No. of Floors)": "cc_issued_floors",
+            "View": "view_document_available"
+        }
+        normalized_header_map = {normalize(k): v for k, v in header_key_map.items()}
+        building_data = {key: [] for key in header_key_map.values()}
+        try:
+            container = page.locator("div.white-box:has(b:has-text('Building Details'))")
+            await container.wait_for(timeout=7000)
+            table = container.locator("table")
+            await table.wait_for(timeout=5000)
+            header_elements = await table.locator("thead th").all()
+            actual_headers = [(await h.text_content() or "").strip() for h in header_elements]
+            actual_headers = [h for h in actual_headers if h != '#']
+            rows = await table.locator("tbody tr").all()
+            for row in rows:
+                if "Total" in (await row.text_content() or ""):
+                    continue
+                cells = await row.locator("td").all()
+                row_cells = cells[1:]
+                for i, header_text in enumerate(actual_headers):
+                    if i < len(row_cells):
+                        cell = row_cells[i]
+                        dict_key = normalized_header_map.get(normalize(header_text))
+                        if not dict_key:
+                            continue
+                        if normalize(header_text) == normalize("View"):
+                            is_visible = await cell.locator("i.bi-eye-fill").count() > 0
+                            building_data[dict_key].append(str(is_visible))
+                        else:
+                            cell_text = (await cell.text_content() or "").strip()
+                            building_data[dict_key].append(cell_text)
+            final_data = {key: ", ".join(value) for key, value in building_data.items() if value}
+            return final_data
+        except Exception as e:
+            self.logger.error(f"Could not extract building details: {e}")
+            return {key: None for key in header_key_map.values()}
+
 
