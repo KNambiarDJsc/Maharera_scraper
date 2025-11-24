@@ -27,6 +27,7 @@ logger = logging.getLogger("MahaReraScraper")
 # CONSTANTS
 # ---------------------------
 BASE_URL = "https://maharerait.maharashtra.gov.in/public/project/view/"
+SEARCH_URL = "https://maharerait.maharashtra.gov.in/ProjectSearch/ProjectSearch?rad=Project&txt="
 OUTPUT_FILENAME = "single_project_output.csv"
 
 DESIRED_ORDER = [
