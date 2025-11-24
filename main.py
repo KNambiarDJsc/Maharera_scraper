@@ -250,19 +250,31 @@ async def retry_worker(playwright, retry_queue, captcha_solver, data_extracter):
             url = f"{BASE_URL}{project_id}"
             logger.info(f"[RETRY] Retrying {project_id}")
 
-            ok = await process_single_project(page, captcha_solver, data_extracter, project_id, url)
+            try:
+                ok = await process_single_project(page, captcha_solver, data_extracter, project_id, url)
 
-            if not ok:
-                logger.warning(f"[RETRY] Failed again: {project_id}")
+                if ok:
+                    logger.info(f"[RETRY] Success on retry: {project_id}")
+                    # Remove from failed.csv since retry succeeded
+                    await remove_from_failed(project_id)
+                else:
+                    logger.warning(f"[RETRY] Failed again: {project_id}")
+                    await asyncio.sleep(1)
+                    await retry_queue.put(project_id)
+
+            except Exception as e:
+                logger.error(f"[RETRY] Unexpected crash for {project_id}: {e}")
                 await asyncio.sleep(1)
                 await retry_queue.put(project_id)
 
-            retry_queue.task_done()
+            finally:
+                retry_queue.task_done()
 
     except asyncio.CancelledError:
-        pass
+        logger.info("[RETRY] Worker cancelled.")
     finally:
         await browser.close()
+
 
 async def main():
     logger.info("--- Starting Single-ID MahaRERA Scraper (Chromium Version) ---")
