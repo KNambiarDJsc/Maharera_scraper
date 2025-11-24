@@ -141,8 +141,9 @@ async def create_chromium_context(playwright):
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="Scrape a single MahaRERA project.")
-    parser.add_argument("--id", type=str, help="RERA Project ID")
+    parser = argparse.ArgumentParser(description="Scrape MahaRERA project details.")
+    parser.add_argument("--id", type=str, help="Numeric MahaRERA project ID")
+    parser.add_argument("--reg", type=str, help="Registration number (e.g., P51800005350)")
     args = parser.parse_args()
 
     # Ask user if ID is not provided via CLI
