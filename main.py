@@ -140,120 +140,38 @@ async def create_chromium_context(playwright):
     return browser, context, page
 
 
-async def normal_worker(playwright, project_queue, retry_queue, captcha_solver, data_extracter):
-    # Create a fresh Chromium context + page for this worker
-    browser, context, page = await create_chromium_context(playwright)
-
-    try:
-        while True:
-            project_id = await project_queue.get()
-            url = f"{BASE_URL}{project_id}"
-            logger.info(f"[NORMAL] Processing {project_id}")
-
-            try:
-                ok = await process_single_project(page, captcha_solver, data_extracter, project_id, url)
-
-                if not ok:
-                    # Log failure + queue for retry
-                    await log_failed_project(project_id, url)
-                    await retry_queue.put(project_id)
-
-            except Exception as e:
-                logger.error(f"[NORMAL] Unexpected error for {project_id}: {e}")
-                await log_failed_project(project_id, url)
-                await retry_queue.put(project_id)
-
-            finally:
-                project_queue.task_done()
-
-    except asyncio.CancelledError:
-        logger.info("[NORMAL] Worker cancelled.")
-    finally:
-        await browser.close()
-    
-
-async def retry_worker(playwright, retry_queue, captcha_solver, data_extracter):
-    browser, context, page = await create_chromium_context(playwright)
-
-    try:
-        while True:
-            project_id = await retry_queue.get()
-            url = f"{BASE_URL}{project_id}"
-            logger.info(f"[RETRY] Retrying {project_id}")
-
-            try:
-                ok = await process_single_project(page, captcha_solver, data_extracter, project_id, url)
-
-                if ok:
-                    logger.info(f"[RETRY] Success on retry: {project_id}")
-                    # Remove from failed.csv since retry succeeded
-                    await remove_from_failed(project_id)
-                else:
-                    logger.warning(f"[RETRY] Failed again: {project_id}")
-                    await asyncio.sleep(1)
-                    await retry_queue.put(project_id)
-
-            except Exception as e:
-                logger.error(f"[RETRY] Unexpected crash for {project_id}: {e}")
-                await asyncio.sleep(1)
-                await retry_queue.put(project_id)
-
-            finally:
-                retry_queue.task_done()
-
-    except asyncio.CancelledError:
-        logger.info("[RETRY] Worker cancelled.")
-    finally:
-        await browser.close()
-
-
 async def main():
-    logger.info("--- Starting Single-ID MahaRERA Scraper (Chromium Version) ---")
+    parser = argparse.ArgumentParser(description="Scrape a single MahaRERA project.")
+    parser.add_argument("--id", type=str, help="RERA Project ID")
+    args = parser.parse_args()
 
-    # Ask user for RERA ID
-    project_id = input("Enter the RERA Project ID to scrape: ").strip()
+    # Ask user if ID is not provided via CLI
+    project_id = args.id or input("Enter RERA Project ID: ").strip()
 
     if not project_id.isdigit():
-        logger.error("Invalid project ID. Must be a number.")
+        logger.error("Invalid project ID. Must be numeric.")
         return
 
     project_id = int(project_id)
     url = f"{BASE_URL}{project_id}"
 
     captcha_solver = CaptchaSolver()
-    data_extracter = DataExtracter()
+    data_extractor = DataExtracter()
 
     async with async_playwright() as p:
-        # Create chromium browser
-        browser = await p.chromium.launch(
-            headless=False,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--disable-infobars",
-                "--no-sandbox",
-                "--disable-gpu",
-                "--disable-dev-shm-usage"
-            ]
-        )
-        context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                       "AppleWebKit/537.36 (KHTML, like Gecko) "
-                       "Chrome/120.0 Safari/537.36"
-        )
-        page = await context.new_page()
-        await stealth(page)
+        browser, context, page = await create_chromium_context(p)
 
-        # Process single ID
-        success = await process_single_project(page, captcha_solver, data_extracter, project_id, url)
+        logger.info(f"Scraping Project ID: {project_id}")
+        success = await process_single_project(page, captcha_solver, data_extractor, project_id, url)
 
         if success:
-            logger.info(f"SUCCESS: Scraped project ID {project_id}")
+            logger.info(f"✅ Successfully scraped project {project_id}")
         else:
-            logger.error(f"FAILED to scrape project ID {project_id}")
+            logger.error(f"❌ Failed to scrape project {project_id}")
 
         await browser.close()
 
-    logger.info("--- SINGLE SCRAPE COMPLETE ---")
+    logger.info("--- SCRAPING COMPLETE ---")
 
 
 if __name__ == "__main__":
