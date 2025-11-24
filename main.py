@@ -117,7 +117,7 @@ async def process_single_project(page: Page, captcha_solver: CaptchaSolver,
     try:
         await page.goto(url, wait_until='domcontentloaded', timeout=60000)
 
-        success = await captcha_solver.solve_and_fill(
+        solved = await captcha_solver.solve_and_fill(
             page=page,
             captcha_selector="canvas#captcahCanvas",
             input_selector="input[name='captcha']",
@@ -125,11 +125,11 @@ async def process_single_project(page: Page, captcha_solver: CaptchaSolver,
             reg_no=str(project_id)
         )
 
-        if not success:
-            logger.warning(f"CAPTCHA failed for {project_id}")
+        if not solved:
+            logger.error("CAPTCHA solve failed.")
             return False
 
-        await page.wait_for_load_state("networkidle", timeout=30000)
+        await page.wait_for_load_state("networkidle")
         await page.wait_for_timeout(2000)
 
         data = await data_extractor.extract_project_details(page, str(project_id))
@@ -139,10 +139,11 @@ async def process_single_project(page: Page, captcha_solver: CaptchaSolver,
             await save_record(data)
             return True
 
+        logger.error("Extractor returned no data.")
         return False
 
     except Exception as e:
-        logger.error(f"Error scraping {project_id}: {e}")
+        logger.error(f"Error processing project {project_id}: {e}")
         return False
 
 async def create_chromium_context(playwright):
