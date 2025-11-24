@@ -67,47 +67,15 @@ DESIRED_ORDER = [
     "maharera_certificate_nos"
 ]
 
-# --- Thread-safe file writing locks ---
-csv_lock = asyncio.Lock()
-failed_csv_lock = asyncio.Lock()
-
 async def save_record(data: dict):
-    """Appends a single successful record to the main CSV file in a thread-safe manner."""
-    async with csv_lock:
-        try:
-            df = pd.json_normalize([data])
-            df = df.reindex(columns=DESIRED_ORDER)
-            file_exists = os.path.exists(OUTPUT_FILENAME)
-            df.to_csv(OUTPUT_FILENAME, mode='a', index=False, header=not file_exists)
-        except Exception as e:
-            logger.error(f"Failed to save record for {data.get('project_id')}: {e}")
+    """Saves a single project record to a CSV."""
+    df = pd.json_normalize([data])
+    df = df.reindex(columns=DESIRED_ORDER)
+    file_exists = os.path.exists(OUTPUT_FILENAME)
+    df.to_csv(OUTPUT_FILENAME, mode='a', index=False, header=not file_exists)
 
-async def log_failed_project(project_id: int, url: str):
-    """Appends a single failed project to the failure CSV file in a thread-safe manner."""
-    async with failed_csv_lock:
-        try:
-            file_exists = os.path.exists(FAILED_PROJECTS_FILENAME)
-            with open(FAILED_PROJECTS_FILENAME, 'a', newline='', encoding='utf-8') as f:
-                if not file_exists:
-                    f.write("project_id,url\n")
-                f.write(f"{project_id},{url}\n")
-        except Exception as e:
-            logger.error(f"Failed to log failed project {project_id}: {e}")  
-
-def get_processed_ids() -> Set[int]:
-    """Reads both success and failure CSVs to get a set of all IDs that have been attempted."""
-    processed_ids = set()
-    for filename in [OUTPUT_FILENAME, FAILED_PROJECTS_FILENAME]:
-        if os.path.exists(filename):
-            try:
-                df = pd.read_csv(filename, usecols=['project_id'], on_bad_lines='skip')
-                processed_ids.update(df['project_id'].dropna().astype(int).tolist())
-            except (ValueError, KeyError, FileNotFoundError) as e:
-                logger.warning(f"Could not read project_id column from {filename}. It might be empty or malformed. Error: {e}")
-    return processed_ids
-
-# ---------------- FIXED function with boolean return for reliability ----------------
-async def process_single_project(page: Page, captcha_solver: CaptchaSolver, data_extracter: DataExtracter, project_id: int, url: str) -> bool:
+async def process_single_project(page: Page, captcha_solver: CaptchaSolver,
+                                 data_extractor: DataExtracter, project_id: int, url: str) -> bool:
     try:
         await page.goto(url, wait_until='domcontentloaded', timeout=60000)
 
@@ -120,28 +88,24 @@ async def process_single_project(page: Page, captcha_solver: CaptchaSolver, data
         )
 
         if not success:
-            logger.warning(f"CAPTCHA FAILED for project {project_id}.")
+            logger.warning(f"CAPTCHA failed for {project_id}")
             return False
 
-        await page.wait_for_load_state('networkidle', timeout=30000)
-       
-        
-        await page.wait_for_timeout(2500)
+        await page.wait_for_load_state("networkidle", timeout=30000)
+        await page.wait_for_timeout(2000)
 
-        data = await data_extracter.extract_project_details(page, str(project_id))
+        data = await data_extractor.extract_project_details(page, str(project_id))
 
         if data:
             data["project_id"] = project_id
             await save_record(data)
-            logger.info(f"✅ SUCCESS: Saved data for project {project_id}")
-            return True # Return True on successful save
-        else:
-            logger.warning(f"Data extraction returned None for project {project_id}.")
-            return False # Return False if no data is extracted
+            return True
+
+        return False
 
     except Exception as e:
-        logger.error(f"FATAL ERROR processing project {project_id}: {e}", exc_info=False)
-        return False # Return False on any exception
+        logger.error(f"Error scraping {project_id}: {e}")
+        return False
 
 # ---------------- Helper functions for retry system ----------------
 async def remove_from_failed(project_id: int):
