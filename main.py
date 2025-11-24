@@ -185,12 +185,28 @@ async def main():
     parser.add_argument("--reg", type=str, help="Registration number (e.g., P51800005350)")
     args = parser.parse_args()
 
-    # Ask user if ID is not provided via CLI
-    project_id = args.id or input("Enter RERA Project ID: ").strip()
+    # Case 1: User provided project ID
+    if args.id:
+        project_id = args.id
 
-    if not project_id.isdigit():
-        logger.error("Invalid project ID. Must be numeric.")
-        return
+    # Case 2: User provided registration number
+    elif args.reg:
+        project_id = get_project_id_from_registration(args.reg)
+        if not project_id:
+            logger.error("Could not resolve registration number.")
+            return
+
+    # Case 3: Interactive mode
+    else:
+        raw = input("Enter RERA Project ID or Registration Number: ").strip()
+
+        if raw.isdigit():
+            project_id = raw
+        else:
+            project_id = get_project_id_from_registration(raw)
+            if not project_id:
+                logger.error("Invalid registration number.")
+                return
 
     project_id = int(project_id)
     url = f"{BASE_URL}{project_id}"
@@ -201,17 +217,15 @@ async def main():
     async with async_playwright() as p:
         browser, context, page = await create_chromium_context(p)
 
-        logger.info(f"Scraping Project ID: {project_id}")
-        success = await process_single_project(page, captcha_solver, data_extractor, project_id, url)
+        logger.info(f"Scraping project ID: {project_id}")
+        ok = await process_single_project(page, captcha_solver, data_extractor, project_id, url)
 
-        if success:
-            logger.info(f"✅ Successfully scraped project {project_id}")
+        if ok:
+            logger.info(f"SUCCESS: Project {project_id} scraped.")
         else:
-            logger.error(f"❌ Failed to scrape project {project_id}")
+            logger.error(f"FAILED: Project {project_id} could not be scraped.")
 
         await browser.close()
-
-    logger.info("--- SCRAPING COMPLETE ---")
 
 
 if __name__ == "__main__":
