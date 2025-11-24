@@ -210,6 +210,7 @@ async def create_chromium_context(playwright):
 
 
 async def normal_worker(playwright, project_queue, retry_queue, captcha_solver, data_extracter):
+    # Create a fresh Chromium context + page for this worker
     browser, context, page = await create_chromium_context(playwright)
 
     try:
@@ -218,16 +219,24 @@ async def normal_worker(playwright, project_queue, retry_queue, captcha_solver, 
             url = f"{BASE_URL}{project_id}"
             logger.info(f"[NORMAL] Processing {project_id}")
 
-            ok = await process_single_project(page, captcha_solver, data_extracter, project_id, url)
+            try:
+                ok = await process_single_project(page, captcha_solver, data_extracter, project_id, url)
 
-            if not ok:
+                if not ok:
+                    # Log failure + queue for retry
+                    await log_failed_project(project_id, url)
+                    await retry_queue.put(project_id)
+
+            except Exception as e:
+                logger.error(f"[NORMAL] Unexpected error for {project_id}: {e}")
                 await log_failed_project(project_id, url)
                 await retry_queue.put(project_id)
 
-            project_queue.task_done()
+            finally:
+                project_queue.task_done()
 
     except asyncio.CancelledError:
-        pass
+        logger.info("[NORMAL] Worker cancelled.")
     finally:
         await browser.close()
     
