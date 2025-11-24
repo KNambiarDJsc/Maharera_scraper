@@ -107,35 +107,7 @@ async def process_single_project(page: Page, captcha_solver: CaptchaSolver,
         logger.error(f"Error scraping {project_id}: {e}")
         return False
 
-# ---------------- Helper functions for retry system ----------------
-async def remove_from_failed(project_id: int):
-    """Remove a project ID from failed CSV after a successful retry."""
-    async with failed_csv_lock:
-        if not os.path.exists(FAILED_PROJECTS_FILENAME):
-            return
-        try:
-            rows = []
-            fieldnames = ['project_id', 'url']
-            with open(FAILED_PROJECTS_FILENAME, 'r', newline='', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                fieldnames = reader.fieldnames or fieldnames
-                for row in reader:
-                    if str(row.get('project_id')) != str(project_id):
-                        rows.append(row)
-            with open(FAILED_PROJECTS_FILENAME, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(rows)
-        except Exception as e:
-            logger.error(f"Error removing project {project_id} from failed list: {e}")
-
-async def log_failed_and_enqueue(project_id: int, url: str, retry_queue: asyncio.Queue):
-    """Append to failed CSV and push ID to retry queue."""
-    await log_failed_project(project_id, url)
-    await retry_queue.put(project_id)
-
 async def create_chromium_context(playwright):
-    """Creates Chromium browser, context and page with stealth mode."""
     browser = await playwright.chromium.launch(
         headless=False,
         args=[
@@ -158,11 +130,10 @@ async def create_chromium_context(playwright):
     page = await context.new_page()
     await stealth(page)
 
-    # Block images, fonts, videos for speed
     await page.route(
         "**/*",
         lambda route: route.abort()
-        if route.request.resource_type in ["image", "stylesheet", "font", "media"]
+        if route.request.resource_type in ["image", "font", "media", "stylesheet"]
         else route.continue_()
     )
 
