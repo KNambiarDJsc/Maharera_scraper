@@ -4,6 +4,7 @@ import os
 import csv
 import pandas as pd
 from playwright.async_api import async_playwright, Playwright, Browser, BrowserContext, Page
+from playwright_stealth import stealth
 from modules.captcha_solver import CaptchaSolver
 from modules.data_extractor import DataExtracter
 from typing import Set, Optional
@@ -172,6 +173,40 @@ async def log_failed_and_enqueue(project_id: int, url: str, retry_queue: asyncio
     """Append to failed CSV and push ID to retry queue."""
     await log_failed_project(project_id, url)
     await retry_queue.put(project_id)
+
+async def create_chromium_context(playwright):
+    """Creates Chromium browser, context and page with stealth mode."""
+    browser = await playwright.chromium.launch(
+        headless=False,
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--disable-infobars",
+            "--no-sandbox",
+            "--disable-gpu",
+            "--disable-dev-shm-usage"
+        ]
+    )
+
+    context = await browser.new_context(
+        user_agent=(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0 Safari/537.36"
+        )
+    )
+
+    page = await context.new_page()
+    await stealth(page)
+
+    # Block images, fonts, videos for speed
+    await page.route(
+        "**/*",
+        lambda route: route.abort()
+        if route.request.resource_type in ["image", "stylesheet", "font", "media"]
+        else route.continue_()
+    )
+
+    return browser, context, page
 
 
 async def normal_worker(playwright, project_queue, retry_queue, captcha_solver, data_extracter):
