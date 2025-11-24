@@ -108,9 +108,7 @@ def get_project_id_from_registration(reg_no: str) -> int | None:
         return None
 
 async def save_record(data: dict):
-    """Saves a single project record to a CSV."""
     df = pd.json_normalize([data])
-    df = df.reindex(columns=DESIRED_ORDER)
     file_exists = os.path.exists(OUTPUT_FILENAME)
     df.to_csv(OUTPUT_FILENAME, mode='a', index=False, header=not file_exists)
 
