@@ -70,6 +70,43 @@ DESIRED_ORDER = [
     "maharera_certificate_nos"
 ]
 
+def get_project_id_from_registration(reg_no: str) -> int | None:
+    """
+    Searches the public MahaRERA endpoint for a registration number
+    and extracts the internal numeric project ID.
+    """
+
+    try:
+        logger.info(f"Searching registration number: {reg_no}")
+
+        url = SEARCH_URL + reg_no
+        response = requests.get(url, timeout=10)
+
+        if response.status_code != 200:
+            logger.error("Search page request failed.")
+            return None
+
+        html = HTMLParser(response.text)
+        link = html.css_first("a[href*='/public/project/view/']")
+
+        if not link:
+            logger.error("No matching RERA project found.")
+            return None
+
+        href = link.attributes.get("href", "")
+        project_id = href.strip().split("/")[-1]
+
+        if project_id.isdigit():
+            logger.info(f"Found internal project ID: {project_id}")
+            return int(project_id)
+
+        logger.error("Extracted ID is not numeric.")
+        return None
+
+    except Exception as e:
+        logger.error(f"FAST SEARCH FAILED: {e}")
+        return None
+
 async def save_record(data: dict):
     """Saves a single project record to a CSV."""
     df = pd.json_normalize([data])
