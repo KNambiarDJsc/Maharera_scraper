@@ -3,6 +3,8 @@ import asyncio
 import logging
 import os
 import pandas as pd
+import requests
+from selectolax.parser import HTMLParser
 
 from playwright.async_api import async_playwright, Page
 from playwright_stealth import stealth
