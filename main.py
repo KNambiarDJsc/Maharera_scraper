@@ -72,39 +72,47 @@ DESIRED_ORDER = [
 
 def get_project_id_from_registration(reg_no: str) -> int | None:
     """
-    Searches the public MahaRERA endpoint for a registration number
-    and extracts the internal numeric project ID.
+    Uses the REAL MahaRERA public search endpoint.
+    Mimics the browser POST request.
+    Extracts internal project_id cleanly.
     """
-
     try:
         logger.info(f"Searching registration number: {reg_no}")
 
-        url = SEARCH_URL + reg_no
-        response = requests.get(url, timeout=10)
+        payload = {
+            "SearchText": reg_no,
+            "Type": "Project"   # Important
+        }
 
-        if response.status_code != 200:
-            logger.error("Search page request failed.")
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+
+        resp = requests.post(SEARCH_POST_URL, data=payload, headers=headers, timeout=10)
+
+        if resp.status_code != 200:
+            logger.error("POST search request failed.")
             return None
 
-        html = HTMLParser(response.text)
+        html = HTMLParser(resp.text)
         link = html.css_first("a[href*='/public/project/view/']")
 
         if not link:
-            logger.error("No matching RERA project found.")
+            logger.error("Project not found.")
             return None
 
-        href = link.attributes.get("href", "")
+        href = link.attributes.get("href")
         project_id = href.strip().split("/")[-1]
 
         if project_id.isdigit():
-            logger.info(f"Found internal project ID: {project_id}")
+            logger.info(f"FOUND internal project ID: {project_id}")
             return int(project_id)
 
-        logger.error("Extracted ID is not numeric.")
         return None
 
     except Exception as e:
-        logger.error(f"FAST SEARCH FAILED: {e}")
+        logger.error(f"FAST SEARCH failed: {e}")
         return None
 
 async def save_record(data: dict):
