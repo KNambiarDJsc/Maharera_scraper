@@ -1,35 +1,32 @@
+import argparse
 import asyncio
 import logging
 import os
-import csv
 import pandas as pd
-from playwright.async_api import async_playwright, Playwright, Browser, BrowserContext, Page
+
+from playwright.async_api import async_playwright, Page
 from playwright_stealth import stealth
+
 from modules.captcha_solver import CaptchaSolver
 from modules.data_extractor import DataExtracter
-from typing import Set, Optional
 
-# --- Configuration ---
-# --- Logging setup ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# ---------------------------
+# LOGGING CONFIG
+# ---------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger("MahaReraScraper")
 
-# --- File Configuration ---
-OUTPUT_FILENAME = "maharera_complete_data.csv"
-FAILED_PROJECTS_FILENAME = "maharera_failed_projects.csv"
 
-# --- Scraping Configuration ---
-START_ID = 401
-END_ID = 800
+# ---------------------------
+# CONSTANTS
+# ---------------------------
 BASE_URL = "https://maharerait.maharashtra.gov.in/public/project/view/"
+OUTPUT_FILENAME = "single_project_output.csv"
 
-# --- Worker counts (12 total = 8 normal + 4 retry) ---
-TOTAL_WORKERS = 16
-RETRY_WORKERS = 5
-NORMAL_WORKERS = TOTAL_WORKERS - RETRY_WORKERS
-
-
-# --- Column order for the final CSV ---
 DESIRED_ORDER = [
     "project_id", "registration_number", "date_of_registration", "project_name",
     "project_type", "project_location", "proposed_completion_date",
@@ -47,14 +44,13 @@ DESIRED_ORDER = [
     "promoter_official_communication_address_pin_code", "partner_name",
     "partner_designation", "promoter_past_project_names",
     "promoter_past_project_statuses", "promoter_past_litigation_statuses",
-    "authorised_signatory_names", "authorised_signatory_designations","spa_name","spa_designation",
-    "architect_names", "engineer_names", "chartered_accountant_names","other_professional_names",
-    "sro_name", "sro_document_name", "latest_form1_date", "latest_form2_date","latest_form5_date","has_occupancy_certificate",
-    "promoter_is_landowner", "has_other_landowners", "landowner_names",
+    "authorised_signatory_names", "authorised_signatory_designations", "spa_name", "spa_designation",
+    "architect_names", "engineer_names", "chartered_accountant_names", "other_professional_names",
+    "sro_name", "sro_document_name", "latest_form1_date", "latest_form2_date", "latest_form5_date",
+    "has_occupancy_certificate", "promoter_is_landowner", "has_other_landowners", "landowner_names",
     "landowner_types", "landowner_share_types", "building_identification_plan",
-    "wing_identification_plan", "sanctioned_floors",
-    "sanctioned_habitable_floors", "sanctioned_apartments",
-    "cc_issued_floors", "view_document_available",
+    "wing_identification_plan", "sanctioned_floors", "sanctioned_habitable_floors",
+    "sanctioned_apartments", "cc_issued_floors", "view_document_available",
     "summary_identification_building_wing", "summary_identification_wing_plan",
     "summary_floor_type", "summary_total_no_of_residential_apartments",
     "summary_total_no_of_non_residential_apartments",
