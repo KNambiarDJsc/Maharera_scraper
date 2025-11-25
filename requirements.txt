@@ -6,6 +6,9 @@ langchain-openai
 langgraph
 playwright
 playwright-stealth
+
+# --- OCR & Image Processing ---
+opencv-python
 pytesseract
 Pillow
 opencv-python-headless
