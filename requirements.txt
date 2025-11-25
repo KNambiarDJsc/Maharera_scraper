@@ -1,18 +1,22 @@
-# --- Browser automation ---
+
+langchain
+langchain-core
+langchain-community
+langchain-openai
+langgraph
 playwright
 playwright-stealth
-
-# --- OCR & Image Processing ---
-opencv-python
 pytesseract
 Pillow
-
-# --- Data & Utils ---
+opencv-python-headless
 numpy
-pandas
-tqdm
-python-dotenv
-pydantic
 requests
+httpx
+selectolax
+pydantic
+python-dotenv
+tqdm
+pandas
 loguru
 aiofiles
+
